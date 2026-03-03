@@ -1,3 +1,7 @@
 venv/
 __pycache__/
 *.pyc
+kagglecatsanddogs_3367a/
+*.pth
+*.pt
+*.zip

@@ -46,8 +46,7 @@ plt.plot(X1, Y1_pred_poly)
 plt.title("Dataset 1")
 plt.xlabel("X")
 plt.ylabel("Y")
-plt.show()
-
+plt.savefig("q1-a.png")
 
 # ==============================
 # DATASET 2
@@ -89,4 +88,4 @@ plt.plot(X2, Y2_pred_poly)
 plt.title("Dataset 2")
 plt.xlabel("X")
 plt.ylabel("Y")
-plt.show()
+plt.savefig("q1-b.png")

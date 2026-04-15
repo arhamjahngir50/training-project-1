@@ -22,7 +22,7 @@ X = df[["Annual Income (k$)", "Spending Score (1-100)"]]
 # Feature Scaling
 # -------------------------------
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+X_scaled = scaler.fit_transform(X)    # large attributes small , small attributes large 
 
 # -------------------------------
 # Elbow Method (Optional - To find best K)
@@ -44,7 +44,7 @@ plt.close()
 # -------------------------------
 # Apply K-Means
 # -------------------------------
-kmeans = KMeans(n_clusters=4, random_state=42)
+kmeans = KMeans(n_clusters=5, random_state=42)
 df["Cluster"] = kmeans.fit_predict(X_scaled)
 
 # -------------------------------

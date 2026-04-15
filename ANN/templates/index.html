@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ANN Hyperparameter Tester</title>
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; margin: 24px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .col { flex: 1 1 280px; min-width: 260px; }
+      label { display: block; margin: 10px 0 6px; font-weight: 600; }
+      input[type="number"], input[type="text"], select { width: 100%; padding: 8px; }
+      input[type="range"] { width: 100%; }
+      .btn { margin-top: 16px; padding: 10px 14px; cursor: pointer; }
+      .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 18px; }
+      code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+      .muted { color: #555; }
+      #status { margin-top: 10px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+      th { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>ANN Hyperparameter Tester</h1>
+    <p class="muted">Retrains from scratch on a fixed dataset (MNIST-like digits from <code>sklearn</code>) every time you click <b>Train</b>.</p>
+
+    <div class="row">
+      <div class="col">
+        <form id="train-form">
+          <label>Hidden layers</label>
+          <input type="number" name="hidden_layers" min="1" max="8" step="1" value="2" />
+
+          <label>Hidden units per layer</label>
+          <input type="number" name="hidden_units" min="8" max="512" step="8" value="64" />
+
+          <label>Activation</label>
+          <select name="activation">
+            <option value="relu" selected>ReLU</option>
+            <option value="tanh">Tanh</option>
+            <option value="leakyrelu">LeakyReLU</option>
+            <option value="sigmoid">Sigmoid</option>
+          </select>
+
+          <label>Weight initialization</label>
+          <select name="weight_init">
+            <option value="xavier_uniform" selected>Xavier uniform</option>
+            <option value="xavier_normal">Xavier normal</option>
+            <option value="kaiming_uniform">Kaiming uniform</option>
+            <option value="kaiming_normal">Kaiming normal</option>
+            <option value="normal">Normal (0, 0.02)</option>
+            <option value="uniform">Uniform (-0.05, 0.05)</option>
+            <option value="zeros">Zeros</option>
+          </select>
+
+          <label>
+            <input type="checkbox" name="batch_norm" /> Use batch normalization
+          </label>
+
+          <label>Dropout</label>
+          <input type="number" name="dropout" min="0" max="0.8" step="0.05" value="0" />
+
+          <label>Optimizer</label>
+          <select name="optimizer">
+            <option value="adam" selected>Adam</option>
+            <option value="adamw">AdamW</option>
+            <option value="rmsprop">RMSprop</option>
+            <option value="sgd">SGD</option>
+          </select>
+
+          <label>Learning rate</label>
+          <input type="number" name="learning_rate" min="0.00001" max="1" step="0.00001" value="0.001" />
+
+          <label>L2 regularization (weight decay)</label>
+          <input type="number" name="l2_weight_decay" min="0" max="0.2" step="0.0005" value="0" />
+
+          <label>Batch size</label>
+          <input type="number" name="batch_size" min="8" max="256" step="8" value="64" />
+
+          <label>Epochs</label>
+          <input type="number" name="epochs" min="1" max="100" step="1" value="20" />
+
+          <label>Seed</label>
+          <input type="number" name="seed" min="0" max="100000" step="1" value="42" />
+
+          <div id="sgd-options" class="muted">
+            <label>SGD momentum</label>
+            <input type="number" name="momentum" min="0" max="0.999" step="0.01" value="0.9" />
+
+            <label>
+              <input type="checkbox" name="nesterov" /> Nesterov momentum
+            </label>
+          </div>
+
+          <button class="btn" type="submit">Train</button>
+        </form>
+        <div id="status"></div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h2>Results</h2>
+          <div id="summary" class="muted">Run training to see accuracy.</div>
+          <div id="final-config" class="muted"></div>
+
+          <table id="history-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>Epoch</th>
+                <th>Train loss</th>
+                <th>Train acc</th>
+                <th>Test acc</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("train-form");
+      const statusEl = document.getElementById("status");
+      const summaryEl = document.getElementById("summary");
+      const finalConfigEl = document.getElementById("final-config");
+      const table = document.getElementById("history-table");
+      const tbody = table.querySelector("tbody");
+
+      function setCheckboxByName(name, checked) {
+        const el = form.querySelector(`[name="${name}"]`);
+        if (el) el.checked = checked;
+      }
+
+      // Hide/show SGD-only options.
+      function syncOptimizerUI() {
+        const opt = form.querySelector('select[name="optimizer"]').value;
+        const sgd = document.getElementById("sgd-options");
+        sgd.style.display = (opt === "sgd") ? "block" : "none";
+      }
+      form.querySelector('select[name="optimizer"]').addEventListener("change", syncOptimizerUI);
+      syncOptimizerUI();
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        statusEl.textContent = "Training... (this can take a minute)";
+        summaryEl.textContent = "";
+        finalConfigEl.textContent = "";
+        tbody.innerHTML = "";
+        table.style.display = "none";
+
+        const fd = new FormData(form);
+
+        // If checkbox is not checked, it won't be present in FormData.
+        // That's okay: backend treats missing as false.
+        const resp = await fetch("/train", { method: "POST", body: fd });
+        const data = await resp.json();
+
+        if (!data.ok) {
+          statusEl.textContent = "Error: " + data.error;
+          return;
+        }
+
+        statusEl.textContent = "Done. Device: " + data.device;
+
+        const final = data.final || {};
+        summaryEl.innerHTML =
+          `Final epoch: <b>${final.epoch ?? "-"}</b><br>` +
+          `Train accuracy: <b>${(final.train_acc * 100).toFixed(2)}%</b><br>` +
+          `Test accuracy: <b>${(final.test_acc * 100).toFixed(2)}%</b><br>` +
+          `Train loss: <b>${(final.train_loss ?? 0).toFixed(4)}</b>`;
+
+        finalConfigEl.textContent = "Config: " + JSON.stringify(data.config);
+
+        const history = data.history || [];
+        if (history.length > 0) {
+          table.style.display = "table";
+          for (const row of history) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${row.epoch}</td>
+              <td>${row.train_loss.toFixed(4)}</td>
+              <td>${(row.train_acc * 100).toFixed(2)}%</td>
+              <td>${(row.test_acc * 100).toFixed(2)}%</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
+

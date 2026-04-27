@@ -1,0 +1,15 @@
+langchain
+langchain-google-genai
+langchain-community
+langchain-chroma
+langchain-classic
+google-generativeai
+chromadb
+sentence-transformers
+pypdf
+python-docx
+streamlit
+psutil
+python-dotenv
+gitpython
+pyperclip

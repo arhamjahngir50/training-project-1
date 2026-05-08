@@ -6,3 +6,4 @@ kagglecatsanddogs_3367a/
 *.pt
 *.zip
 langchain-academy/
+*.env
